@@ -1,0 +1,67 @@
+# ============================================
+# OcuNet-AI .gitignore
+# ============================================
+
+# --- DATASETS (never commit raw data) ---
+data/
+
+# --- MODEL CHECKPOINTS (large binary files) ---
+checkpoints*/
+*.pth
+*.pkl
+*.h5
+*.pt
+*.ckpt
+*.onnx
+
+# --- GENERATED FIGURES & OUTPUTS ---
+xai_figures/
+uncertainty_figures/
+explanations/
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.tiff
+
+# --- PYTHON CACHE ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# --- VIRTUAL ENVIRONMENTS ---
+venv/
+env/
+ENV/
+.venv/
+
+# --- IDE / EDITOR ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# --- ARCHIVES ---
+*.zip
+*.tar.gz
+*.tar
+*.rar
+*.7z
+
+# --- LOGS ---
+*.log
+logs/
+
+# --- OS FILES ---
+.DS_Store
+Thumbs.db
+
+# --- NOTEBOOK CHECKPOINTS ---
+.ipynb_checkpoints/
+
+# --- MODAL / CLOUD ---
+.modal/
