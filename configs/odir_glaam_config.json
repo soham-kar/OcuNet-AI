@@ -1,0 +1,18 @@
+{
+    "model_name": "glaam_odir_v1",
+    "model_type": "glaam",
+    "num_classes": 7,
+    "img_size": 224,
+    "batch_size": 24,
+    "pretrained": true,
+    "attention_stages": [
+        13,
+        17
+    ],
+    "dropout_rate": 0.3,
+    "learning_rate": 0.0001,
+    "weight_decay": 0.01,
+    "epochs": 50,
+    "early_stopping_patience": 15,
+    "random_seed": 42
+}

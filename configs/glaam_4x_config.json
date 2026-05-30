@@ -1,0 +1,27 @@
+{
+    "model_name": "glaam_4x_test",
+    "model_type": "glaam-4x",
+    "num_classes": 4,
+    "img_size": 224,
+    "batch_size": 16,
+    "pretrained": true,
+    "attention_stages": [
+        6,
+        13,
+        17
+    ],
+    "dropout_rate": 0.3,
+    "learning_rate": 0.0003,
+    "weight_decay": 0.03,
+    "epochs": 25,
+    "early_stopping_patience": 8,
+    "random_seed": 42,
+    "use_mixup": true,
+    "mixup_alpha": 0.2,
+    "disease_weights": [
+        2.0,
+        1.5,
+        1.0,
+        0.5
+    ]
+}

@@ -1,0 +1,20 @@
+{
+    "model_name": "glaam_final",
+    "model_type": "glaam",
+    "num_classes": 4,
+    "img_size": 224,
+    "batch_size": 16,
+    "pretrained": true,
+    "attention_stages": [
+        13,
+        17
+    ],
+    "dropout_rate": 0.5,
+    "learning_rate": 0.0001,
+    "weight_decay": 0.1,
+    "epochs": 50,
+    "early_stopping_patience": 10,
+    "random_seed": 42,
+    "use_mixup": true,
+    "mixup_alpha": 0.2
+}

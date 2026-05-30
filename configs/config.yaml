@@ -1,0 +1,63 @@
+# YOLO-GLAAM Cataract Detection Configuration
+
+# Paths
+paths:
+  data_root: "data/"
+  raw_slitlamp: "data/raw/slitlamp/"
+  raw_fundus: "data/raw/fundus/"
+  processed: "data/processed/"
+  yolo_labels: "data/annotations/yolo/"
+  checkpoints: "checkpoints/"
+  logs: "logs/"
+
+# Dataset Settings
+dataset:
+  image_size: 384  # After YOLO crop
+  train_split: 0.8
+  val_split: 0.1
+  test_split: 0.1
+  num_workers: 4
+  
+# YOLO Lens Detector
+yolo:
+  model: "yolov8n.pt"  # nano version for mobile
+  epochs: 50
+  batch_size: 16
+  imgsz: 640
+  roi_padding: 20  # pixels to add around detected lens
+
+# GLAAM Model
+glaam:
+  backbone: "mobilenetv2"  # or "inceptionv3"
+  pretrained: true
+  attention_reduction: 16  # channel reduction ratio
+  dropout: 0.3
+
+# Training
+training:
+  epochs: 100
+  batch_size: 32
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  scheduler: "cosine"  # or "step"
+  early_stopping_patience: 15
+  
+# Multi-task Learning
+multitask:
+  binary_weight: 1.0      # Weight for binary classification loss
+  severity_weight: 1.0    # Weight for LOCS III grading loss
+  num_severity_classes: 7  # LOCS III: 0-6
+
+# Augmentation
+augmentation:
+  horizontal_flip: true
+  vertical_flip: false
+  rotation_limit: 15
+  brightness_limit: 0.2
+  contrast_limit: 0.2
+  
+# Mobile Export
+export:
+  onnx: true
+  tflite: false  # Requires tf-nightly
+  quantize: false

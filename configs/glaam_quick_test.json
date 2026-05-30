@@ -1,0 +1,23 @@
+{
+    "model_name": "glaam_quick_test_no_dropout",
+    "model_type": "glaam",
+    "num_classes": 4,
+    "img_size": 224,
+    "batch_size": 16,
+    "pretrained": true,
+    "attention_stages": [
+        10,
+        13,
+        17
+    ],
+    "reduction_ratio": 8,
+    "attention_dropout": 0.0,
+    "dropout_rate": 0.3,
+    "learning_rate": 0.0003,
+    "weight_decay": 0.03,
+    "epochs": 20,
+    "early_stopping_patience": 7,
+    "random_seed": 42,
+    "use_mixup": true,
+    "mixup_alpha": 0.2
+}
