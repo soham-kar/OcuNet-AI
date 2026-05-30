@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>GLAAM – Fundus Disease Detection</title>
+  <meta name="description" content="AI-powered fundus image analysis for Cataract, Diabetic Retinopathy, Glaucoma, and Myopia detection using GLAAM attention model."/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg:       #080c14;
+      --surface:  #0f1623;
+      --surface2: #151e2e;
+      --border:   #1e2d45;
+      --accent:   #4f8ef7;
+      --accent2:  #6c63ff;
+      --text:     #e8edf5;
+      --muted:    #6b7a99;
+      --cat:  #E74C3C;
+      --dr:   #E67E22;
+      --gla:  #8E44AD;
+      --myo:  #2980B9;
+      --ok:   #2ecc71;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      font-family: 'Inter', sans-serif;
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Background grid ── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image:
+        linear-gradient(rgba(79,142,247,.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(79,142,247,.04) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+    }
+
+    /* ── HEADER ── */
+    header {
+      text-align: center;
+      padding: 3rem 1rem 1.5rem;
+      position: relative;
+    }
+    .logo-ring {
+      width: 72px; height: 72px;
+      margin: 0 auto 1.2rem;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2rem;
+      box-shadow: 0 0 40px rgba(79,142,247,.35);
+      animation: pulse-ring 3s ease-in-out infinite;
+    }
+    @keyframes pulse-ring {
+      0%, 100% { box-shadow: 0 0 30px rgba(79,142,247,.3); }
+      50%       { box-shadow: 0 0 60px rgba(79,142,247,.6); }
+    }
+    h1 {
+      font-size: clamp(1.8rem, 4vw, 2.8rem);
+      font-weight: 800;
+      background: linear-gradient(135deg, #fff 30%, var(--accent) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      letter-spacing: -0.5px;
+    }
+    .subtitle {
+      margin-top: .5rem;
+      color: var(--muted);
+      font-size: .95rem;
+      font-weight: 400;
+    }
+    .model-badge {
+      display: inline-flex; align-items: center; gap: .4rem;
+      margin-top: 1rem;
+      padding: .3rem .9rem;
+      border: 1px solid var(--border);
+      border-radius: 99px;
+      font-size: .78rem;
+      color: var(--muted);
+      background: var(--surface);
+    }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok);
+           box-shadow: 0 0 8px var(--ok); animation: blink 2s infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+    /* ── MAIN LAYOUT ── */
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 1rem 1.5rem 4rem;
+    }
+
+    /* ── UPLOAD ZONE ── */
+    .upload-card {
+      background: var(--surface);
+      border: 2px dashed var(--border);
+      border-radius: 20px;
+      padding: 3rem 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .25s, background .25s, transform .2s;
+      position: relative;
+      overflow: hidden;
+    }
+    .upload-card:hover, .upload-card.drag-over {
+      border-color: var(--accent);
+      background: var(--surface2);
+      transform: translateY(-2px);
+    }
+    .upload-card::before {
+      content: ''; position: absolute; inset: 0;
+      background: radial-gradient(ellipse at 50% 0%, rgba(79,142,247,.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .upload-icon { font-size: 3rem; margin-bottom: 1rem; }
+    .upload-title { font-size: 1.15rem; font-weight: 600; margin-bottom: .4rem; }
+    .upload-hint  { color: var(--muted); font-size: .88rem; }
+    .upload-btn {
+      margin-top: 1.4rem;
+      display: inline-block;
+      padding: .7rem 2rem;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+      color: white; font-weight: 600; font-size: .9rem;
+      cursor: pointer; border: none;
+      box-shadow: 0 4px 20px rgba(79,142,247,.3);
+      transition: transform .15s, box-shadow .15s;
+    }
+    .upload-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 28px rgba(79,142,247,.45); }
+    #file-input { display: none; }
+
+    /* preview inside upload zone */
+    #img-preview {
+      display: none;
+      max-height: 220px;
+      border-radius: 12px;
+      margin: 0 auto 1rem;
+      border: 2px solid var(--border);
+      box-shadow: 0 8px 32px rgba(0,0,0,.4);
+    }
+
+    /* ── ANALYZE BUTTON ── */
+    #analyze-btn {
+      width: 100%; margin-top: 1.2rem;
+      padding: 1rem 2rem; border: none; border-radius: 14px;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+      color: white; font-size: 1.05rem; font-weight: 700;
+      cursor: pointer; display: none;
+      box-shadow: 0 6px 30px rgba(79,142,247,.35);
+      transition: transform .15s, box-shadow .15s, opacity .15s;
+      letter-spacing: .3px;
+    }
+    #analyze-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 40px rgba(79,142,247,.5); }
+    #analyze-btn:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+
+    /* ── SPINNER ── */
+    .spinner-wrap { display: none; text-align: center; padding: 2.5rem; }
+    .spinner {
+      width: 52px; height: 52px; margin: 0 auto 1rem;
+      border: 4px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner-text { color: var(--muted); font-size: .9rem; }
+
+    /* ── RESULTS ── */
+    #results { display: none; margin-top: 2rem; }
+
+    .status-banner {
+      border-radius: 14px; padding: 1rem 1.4rem;
+      display: flex; align-items: center; gap: .8rem;
+      margin-bottom: 1.5rem; border: 1px solid;
+      font-weight: 600; font-size: 1rem;
+    }
+    .status-banner.detected {
+      background: rgba(231,76,60,.1); border-color: rgba(231,76,60,.3); color: #ff8a80;
+    }
+    .status-banner.normal {
+      background: rgba(46,204,113,.1); border-color: rgba(46,204,113,.3); color: #69f0ae;
+    }
+    .status-icon { font-size: 1.6rem; }
+
+    /* ── DISEASE CARDS ── */
+    .disease-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem; margin-bottom: 2rem;
+    }
+    .disease-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px; padding: 1.2rem 1rem;
+      transition: border-color .2s, transform .2s;
+    }
+    .disease-card.flagged {
+      border-color: var(--card-color, var(--accent));
+      box-shadow: 0 0 20px color-mix(in srgb, var(--card-color, var(--accent)) 25%, transparent);
+    }
+    .disease-card:hover { transform: translateY(-2px); }
+    .card-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: .8rem;
+    }
+    .card-name { font-weight: 700; font-size: .95rem; }
+    .card-icon { font-size: 1.4rem; }
+    .card-desc { color: var(--muted); font-size: .78rem; margin-bottom: .9rem; line-height: 1.4; }
+    .prob-bar-bg {
+      height: 8px; background: var(--surface2); border-radius: 99px; overflow: hidden;
+    }
+    .prob-bar-fill {
+      height: 100%; border-radius: 99px;
+      background: var(--card-color, var(--accent));
+      transition: width 1s cubic-bezier(.25,.8,.25,1);
+      box-shadow: 0 0 10px color-mix(in srgb, var(--card-color, var(--accent)) 60%, transparent);
+    }
+    .prob-value { margin-top: .5rem; font-size: .85rem; font-weight: 600; text-align: right; }
+    .flagged-badge {
+      display: inline-block; font-size: .68rem; font-weight: 700;
+      padding: .15rem .5rem; border-radius: 99px;
+      background: var(--card-color, var(--accent));
+      color: white; margin-left: .4rem; vertical-align: middle;
+    }
+
+    /* ── HEATMAP SECTION ── */
+    .heatmap-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px; padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .section-title {
+      font-size: 1.05rem; font-weight: 700; margin-bottom: .4rem;
+      display: flex; align-items: center; gap: .5rem;
+    }
+    .section-sub { color: var(--muted); font-size: .82rem; margin-bottom: 1.2rem; }
+    .heatmap-tabs { display: flex; gap: .5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+    .heatmap-tab {
+      padding: .4rem 1rem; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--surface2); color: var(--muted);
+      cursor: pointer; font-size: .82rem; font-weight: 600;
+      transition: all .2s;
+    }
+    .heatmap-tab:hover  { border-color: var(--accent); color: var(--text); }
+    .heatmap-tab.active { background: var(--accent); border-color: var(--accent); color: white; }
+    .heatmap-img {
+      width: 100%; border-radius: 12px;
+      border: 1px solid var(--border);
+      box-shadow: 0 8px 32px rgba(0,0,0,.5);
+    }
+
+    /* ── META ROW ── */
+    .meta-row {
+      display: flex; flex-wrap: wrap; gap: .7rem;
+      margin-top: 1.5rem;
+    }
+    .meta-chip {
+      display: inline-flex; align-items: center; gap: .4rem;
+      padding: .35rem .85rem; border-radius: 8px;
+      background: var(--surface2); border: 1px solid var(--border);
+      font-size: .78rem; color: var(--muted);
+    }
+    .meta-chip span { color: var(--text); font-weight: 600; }
+
+    /* ── DISCLAIMER ── */
+    .disclaimer {
+      margin-top: 2rem; padding: 1rem 1.2rem;
+      background: rgba(255,180,0,.05); border: 1px solid rgba(255,180,0,.2);
+      border-radius: 12px; font-size: .78rem; color: #ffd54f;
+      line-height: 1.6;
+    }
+
+    /* ── DISEASE COLORS ── */
+    [data-disease="Cataract"] { --card-color: var(--cat); }
+    [data-disease="DR"]       { --card-color: var(--dr);  }
+    [data-disease="Glaucoma"] { --card-color: var(--gla); }
+    [data-disease="Myopia"]   { --card-color: var(--myo); }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 600px) {
+      .upload-card { padding: 2rem 1rem; }
+      .disease-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── HEADER ─────────────────────────────────── -->
+<header>
+  <div class="logo-ring">👁️</div>
+  <h1>GLAAM Fundus Analyzer</h1>
+  <p class="subtitle">AI-powered multi-disease detection from retinal fundus images</p>
+  <div class="model-badge">
+    <span class="dot"></span>
+    GLAAM · MobileNetV2 · EigenGradCAM XAI · Val AUC 0.9528
+  </div>
+</header>
+
+<!-- ── MAIN ───────────────────────────────────── -->
+<main>
+
+  <!-- Upload zone -->
+  <div class="upload-card" id="drop-zone">
+    <img id="img-preview" src="" alt="Preview"/>
+    <div id="upload-prompt">
+      <div class="upload-icon">🔬</div>
+      <p class="upload-title">Drop a fundus image here</p>
+      <p class="upload-hint">Supports JPG, PNG, BMP, TIFF · Max 16 MB</p>
+      <label for="file-input" class="upload-btn">Choose Image</label>
+    </div>
+    <input type="file" id="file-input" accept="image/*"/>
+  </div>
+
+  <button id="analyze-btn">⚡ Analyze Image</button>
+
+  <!-- Loading -->
+  <div class="spinner-wrap" id="spinner">
+    <div class="spinner"></div>
+    <p class="spinner-text" id="spinner-text">Running GLAAM model…</p>
+  </div>
+
+  <!-- Results -->
+  <div id="results">
+
+    <!-- Status banner -->
+    <div class="status-banner" id="status-banner">
+      <span class="status-icon" id="status-icon"></span>
+      <span id="status-text"></span>
+    </div>
+
+    <!-- Disease probability cards -->
+    <div class="disease-grid" id="disease-grid"></div>
+
+    <!-- Heatmap section -->
+    <div class="heatmap-section" id="heatmap-section" style="display:none">
+      <p class="section-title">🧠 Explainability — Where is the model looking?</p>
+      <p class="section-sub">
+        EigenGradCAM (Stage 13 + 17 fused) · Viridis colormap · Gaussian smoothed
+        — Highlights the retinal regions that drove each disease prediction.
+      </p>
+      <div class="heatmap-tabs" id="heatmap-tabs"></div>
+      <img class="heatmap-img" id="heatmap-img" src="" alt="Attention heatmap"/>
+    </div>
+
+    <!-- Meta row -->
+    <div class="meta-row" id="meta-row"></div>
+
+    <!-- Disclaimer -->
+    <div class="disclaimer">
+      ⚠️ <strong>Medical Disclaimer:</strong> This tool is for research purposes only and
+      does not constitute medical advice. Always consult a qualified ophthalmologist
+      for diagnosis and treatment. The model was trained on ODIR-5K fundus images.
+    </div>
+
+  </div>
+</main>
+
+<!-- ── SCRIPT ─────────────────────────────────── -->
+<script>
+const DISEASE_META = {
+  Cataract: { color: '#E74C3C', icon: '👁️',  desc: 'Lens opacity / blurred vision' },
+  DR:       { color: '#E67E22', icon: '🩸',  desc: 'Retinal blood vessel damage' },
+  Glaucoma: { color: '#8E44AD', icon: '💜',  desc: 'Optic nerve damage' },
+  Myopia:   { color: '#2980B9', icon: '🔍',  desc: 'Nearsightedness' },
+};
+
+let selectedFile   = null;
+let heatmaps       = {};
+let activeDisease  = null;
+
+const dropZone    = document.getElementById('drop-zone');
+const fileInput   = document.getElementById('file-input');
+const analyzeBtn  = document.getElementById('analyze-btn');
+const imgPreview  = document.getElementById('img-preview');
+const uploadPrmt  = document.getElementById('upload-prompt');
+const spinner     = document.getElementById('spinner');
+const spinnerText = document.getElementById('spinner-text');
+const results     = document.getElementById('results');
+
+// ── Drag & drop ───────────────────────────────
+dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', ()=> dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f && f.type.startsWith('image/')) setFile(f);
+});
+dropZone.addEventListener('click', e => {
+  if (e.target !== document.querySelector('.upload-btn') && e.target !== fileInput) fileInput.click();
+});
+fileInput.addEventListener('change', () => fileInput.files[0] && setFile(fileInput.files[0]));
+
+function setFile(f) {
+  selectedFile = f;
+  const url = URL.createObjectURL(f);
+  imgPreview.src = url;
+  imgPreview.style.display = 'block';
+  uploadPrmt.style.display = 'none';
+  analyzeBtn.style.display = 'block';
+  results.style.display = 'none';
+  heatmaps = {};
+}
+
+// ── Analyze ────────────────────────────────────
+analyzeBtn.addEventListener('click', async () => {
+  if (!selectedFile) return;
+
+  analyzeBtn.disabled = true;
+  spinner.style.display = 'block';
+  results.style.display = 'none';
+  spinnerText.textContent = 'Running GLAAM model…';
+
+  const fd = new FormData();
+  fd.append('image', selectedFile);
+
+  try {
+    const resp = await fetch('/predict', { method: 'POST', body: fd });
+    const data = await resp.json();
+
+    spinner.style.display = 'none';
+    analyzeBtn.disabled   = false;
+
+    if (data.error) { alert('Error: ' + data.error); return; }
+
+    renderResults(data);
+  } catch(err) {
+    spinner.style.display = 'none';
+    analyzeBtn.disabled   = false;
+    alert('Network error: ' + err.message);
+  }
+});
+
+// ── Render results ─────────────────────────────
+function renderResults(data) {
+  results.style.display = 'block';
+  heatmaps = data.heatmaps || {};
+
+  // Status banner
+  const banner   = document.getElementById('status-banner');
+  const icon     = document.getElementById('status-icon');
+  const statusTx = document.getElementById('status-text');
+  if (data.flagged.length > 0) {
+    banner.className  = 'status-banner detected';
+    icon.textContent  = '⚠️';
+    statusTx.textContent = `${data.flagged.length} disease${data.flagged.length>1?'s':''} detected: ${data.flagged.join(', ')}`;
+  } else {
+    banner.className  = 'status-banner normal';
+    icon.textContent  = '✅';
+    statusTx.textContent = 'No disease detected above threshold (50%)';
+  }
+
+  // Disease cards
+  const grid = document.getElementById('disease-grid');
+  grid.innerHTML = '';
+  for (const [disease, prob] of Object.entries(data.probs)) {
+    const meta    = DISEASE_META[disease] || {};
+    const flagged = data.flagged.includes(disease);
+    const pct     = (prob * 100).toFixed(1);
+
+    const card = document.createElement('div');
+    card.className = 'disease-card' + (flagged ? ' flagged' : '');
+    card.dataset.disease = disease;
+    card.innerHTML = `
+      <div class="card-header">
+        <span class="card-name">${disease}${flagged ? '<span class="flagged-badge">DETECTED</span>' : ''}</span>
+        <span class="card-icon">${meta.icon || '🔬'}</span>
+      </div>
+      <p class="card-desc">${meta.desc || ''}</p>
+      <div class="prob-bar-bg"><div class="prob-bar-fill" style="width:0%;--card-color:${meta.color}"></div></div>
+      <p class="prob-value" style="color:${meta.color}">${pct}%</p>
+    `;
+    grid.appendChild(card);
+
+    // Animate bar after paint
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      card.querySelector('.prob-bar-fill').style.width = pct + '%';
+    }));
+  }
+
+  // Heatmap section
+  const hmSection = document.getElementById('heatmap-section');
+  const hmTabs    = document.getElementById('heatmap-tabs');
+  const hmImg     = document.getElementById('heatmap-img');
+  hmTabs.innerHTML = '';
+
+  const hmDiseases = Object.keys(heatmaps);
+  if (hmDiseases.length > 0) {
+    hmSection.style.display = 'block';
+    hmDiseases.forEach((d, i) => {
+      const tab = document.createElement('button');
+      tab.className = 'heatmap-tab' + (i === 0 ? ' active' : '');
+      tab.textContent = d;
+      tab.style.setProperty('--accent', DISEASE_META[d]?.color || '#4f8ef7');
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.heatmap-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        hmImg.src = 'data:image/png;base64,' + heatmaps[d];
+        activeDisease = d;
+      });
+      hmTabs.appendChild(tab);
+    });
+    hmImg.src = 'data:image/png;base64,' + heatmaps[hmDiseases[0]];
+    activeDisease = hmDiseases[0];
+  } else {
+    hmSection.style.display = 'none';
+  }
+
+  // Meta chips
+  const metaRow = document.getElementById('meta-row');
+  metaRow.innerHTML = `
+    <div class="meta-chip">⚡ Time <span>${data.elapsed}s</span></div>
+    <div class="meta-chip">🖥️ Device <span>${data.device}</span></div>
+    <div class="meta-chip">📐 Threshold <span>${(data.threshold*100).toFixed(0)}%</span></div>
+    <div class="meta-chip">🔬 Model <span>GLAAM · AUC 0.9528</span></div>
+  `;
+
+  results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+</script>
+</body>
+</html>
