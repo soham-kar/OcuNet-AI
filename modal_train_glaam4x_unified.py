@@ -342,13 +342,33 @@ def train_glaam4x_unified(config: dict):
                 with torch.cuda.amp.autocast():
                     logits = model(images)
                     loss = criterion(logits, labels)
+                
+                # Safety check: detect NaN/Inf loss before backward
+                if not torch.isfinite(loss):
+                    print(f"\n🚨 WARNING: Non-finite loss ({loss.item():.2f}) at batch {batch_idx}")
+                    print("  Skipping batch...")
+                    scaler.update()
+                    continue
+                
                 scaler.scale(loss).backward()
+                # Gradient clipping to prevent explosion from ASL
+                scaler.unscale_(optimizer)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=10.0)
                 scaler.step(optimizer)
                 scaler.update()
             else:
                 logits = model(images)
                 loss = criterion(logits, labels)
+                
+                # Safety check: detect NaN/Inf loss before backward
+                if not torch.isfinite(loss):
+                    print(f"\n🚨 WARNING: Non-finite loss ({loss.item():.2f}) at batch {batch_idx}")
+                    print("  Skipping batch...")
+                    continue
+                
                 loss.backward()
+                # Gradient clipping to prevent explosion from ASL
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=10.0)
                 optimizer.step()
             
             total_loss += loss.item()
