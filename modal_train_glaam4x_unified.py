@@ -4,12 +4,13 @@ Modal Training for GLAAM-4X on Unified Multi-Dataset Fundus Corpus.
 Run:
     modal run modal_train_glaam4x_unified.py
 
-Features:
+Features (v3 — ASL + Clean Splits):
   - Unified dataset (ODIR + JSIEC + RFMiD + PALM)
+  - Asymmetric Loss (ASL) for multi-label imbalance (ICCV 2021)
+  - Clean train/val_tune/test split (no data leakage)
   - Balanced batch sampling with differential augmentation
-  - Focal loss for hard example mining
   - Disease-specific attention heads (GLAAM-4X)
-  - Per-disease threshold optimization on separate tuning split
+  - Per-disease threshold optimization on val_tune split
   - Final evaluation on held-out test set
   - LR warmup + cosine annealing
 """
@@ -103,33 +104,25 @@ def train_glaam4x_unified(config: dict):
     data_root = "/tmp/data"
 
     # ========== LOAD CSVs FROM LOCAL COPY ==========
-    print("\nLoading unified dataset CSV files...")
-    train_csv = Path(data_root) / "train_combined.csv"
-    val_csv = Path(data_root) / "val_combined.csv"
-    test_csv = Path(data_root) / "test_combined.csv"  # optional
+    print("\nLoading v3 dataset CSV files...")
+    train_csv = Path(data_root) / "train_v3.csv"
+    val_tune_csv = Path(data_root) / "val_tune_v3.csv"
+    test_csv = Path(data_root) / "test_v3.csv"
 
     if not train_csv.exists():
         raise FileNotFoundError(f"Train CSV not found: {train_csv}")
-    if not val_csv.exists():
-        raise FileNotFoundError(f"Val CSV not found: {val_csv}")
+    if not val_tune_csv.exists():
+        raise FileNotFoundError(f"Val tune CSV not found: {val_tune_csv}")
+    if not test_csv.exists():
+        raise FileNotFoundError(f"Test CSV not found: {test_csv}")
 
     train_df = pd.read_csv(train_csv)
-    val_df = pd.read_csv(val_csv)
-
-    # If test set exists, use it; otherwise split val 50/50 into tune/eval
-    if test_csv.exists():
-        test_df = pd.read_csv(test_csv)
-        val_tune_df = val_df
-        print(f"Test set found: {len(test_df)} images")
-    else:
-        val_tune_df = val_df.sample(frac=0.5, random_state=42)
-        val_eval_df = val_df.drop(val_tune_df.index)
-        test_df = val_eval_df
-        print(f"No test set found; using half of validation as test: {len(test_df)} images")
+    val_tune_df = pd.read_csv(val_tune_csv)
+    test_df = pd.read_csv(test_csv)
 
     print(f"Train: {len(train_df)} images")
     print(f"Val tune: {len(val_tune_df)} images")
-    print(f"Test/eval: {len(test_df)} images")
+    print(f"Test: {len(test_df)} images")
     print(f"Train disease distribution: {train_df[DISEASE_NAMES].sum().to_dict()}")
     print(f"Val disease distribution: {val_tune_df[DISEASE_NAMES].sum().to_dict()}")
     print(f"Test disease distribution: {test_df[DISEASE_NAMES].sum().to_dict()}")
@@ -306,27 +299,16 @@ def train_glaam4x_unified(config: dict):
         print("torch.compile() not available (PyTorch < 2.0)")
 
     # ========== LOSS & OPTIMIZER ==========
-    class MultiLabelFocalLoss(nn.Module):
-        def __init__(self, alpha=0.25, gamma=2.0, class_weights=None):
-            super().__init__()
-            self.alpha = alpha
-            self.gamma = gamma
-            self.class_weights = class_weights  # Tensor of shape (num_classes,)
-        def forward(self, logits, targets):
-            probs = torch.sigmoid(logits)
-            bce = F.binary_cross_entropy_with_logits(logits, targets, reduction='none')
-            p_t = probs * targets + (1 - probs) * (1 - targets)
-            alpha_t = self.alpha * targets + (1 - self.alpha) * (1 - targets)
-            if self.class_weights is not None:
-                alpha_t = alpha_t * self.class_weights.to(targets.device)
-            focal_weight = alpha_t * (1 - p_t).pow(self.gamma)
-            return (focal_weight * bce).mean()
-
-    criterion = MultiLabelFocalLoss(
-        alpha=config['focal_alpha'],
-        gamma=config['focal_gamma'],
-        class_weights=class_weights,
+    # ASL (Asymmetric Loss) — ICCV 2021, proven for multi-label imbalance
+    from utils.losses import AsymmetricLossOptimized
+    
+    criterion = AsymmetricLossOptimized(
+        gamma_neg=config.get('asl_gamma_neg', 4.0),
+        gamma_pos=config.get('asl_gamma_pos', 0.0),
+        clip=config.get('asl_clip', 0.05),
     )
+    print(f"Using AsymmetricLoss (γ_neg={config.get('asl_gamma_neg', 4.0)}, "
+          f"γ_pos={config.get('asl_gamma_pos', 0.0)}, clip={config.get('asl_clip', 0.05)})")
     optimizer = AdamW(model.parameters(), lr=config['learning_rate'], weight_decay=config.get('weight_decay', 1e-4))
     
     # Combined warmup + cosine annealing scheduler using LambdaLR
@@ -535,7 +517,7 @@ def train_glaam4x_unified(config: dict):
 @app.local_entrypoint()
 def main():
     config = {
-        "model_name": "glaam4x_unified_v2_384",
+        "model_name": "glaam4x_unified_v3_asl_384",
         "num_classes": 4,
         "img_size": 384,
         "batch_size": 32,
@@ -544,9 +526,11 @@ def main():
         "weight_decay": 1e-4,
         "epochs": 60,
         "warmup_epochs": 5,
-        "focal_alpha": 0.25,
-        "focal_gamma": 2.0,
+        # ASL parameters (replaces focal_alpha/focal_gamma)
+        "asl_gamma_neg": 4.0,   # Aggressively suppress easy negatives
+        "asl_gamma_pos": 0.0,   # Don't suppress positives
+        "asl_clip": 0.05,       # Hard-threshold negatives below 5% probability
     }
-    print("Starting GLAAM-4X unified training on Modal cloud...")
+    print("Starting GLAAM-4X v3 ASL training on Modal cloud...")
     results = train_glaam4x_unified.remote(config)
     print(f"Results: {results}")
