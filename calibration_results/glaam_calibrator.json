@@ -1,0 +1,48 @@
+{
+  "disease_names": [
+    "Cataract",
+    "DR",
+    "Glaucoma",
+    "Myopia"
+  ],
+  "temperatures": {
+    "Cataract": 1.2862978049017981,
+    "DR": 0.9996278553750129,
+    "Glaucoma": 1.2133286590795545,
+    "Myopia": 0.47071857681257473
+  },
+  "results": {
+    "Cataract": {
+      "temperature": 1.2862978049017981,
+      "ece_before": 1.443318823191125,
+      "ece_after": 0.608793403771747,
+      "auc": 0.9623955431754875,
+      "n_positive": 22,
+      "n_total": 381
+    },
+    "DR": {
+      "temperature": 0.9996278553750129,
+      "ece_before": 2.4078130252717997,
+      "ece_after": 2.3738444143642106,
+      "auc": 0.8349438202247191,
+      "n_positive": 25,
+      "n_total": 381
+    },
+    "Glaucoma": {
+      "temperature": 1.2133286590795545,
+      "ece_before": 2.2843299888250383,
+      "ece_after": 1.5048289920014435,
+      "auc": 0.9217936945209673,
+      "n_positive": 18,
+      "n_total": 381
+    },
+    "Myopia": {
+      "temperature": 0.47071857681257473,
+      "ece_before": 1.2783381569729702,
+      "ece_after": 0.399893836901878,
+      "auc": 0.9997741644083107,
+      "n_positive": 12,
+      "n_total": 381
+    }
+  }
+}
