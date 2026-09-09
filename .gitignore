@@ -34,6 +34,7 @@ __pycache__/
 
 # --- VIRTUAL ENVIRONMENTS ---
 venv/
+venv_linux/
 env/
 ENV/
 .venv/
@@ -62,6 +63,12 @@ Thumbs.db
 
 # --- NOTEBOOK CHECKPOINTS ---
 .ipynb_checkpoints/
+
+# --- SCRATCH / LOCK FILES ---
+.~lock.*#
+
+# --- REFERENCE PAPER PDFs (large, not source) ---
+cataract paper/
 
 # --- MODAL / CLOUD ---
 .modal/

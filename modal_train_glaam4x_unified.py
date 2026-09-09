@@ -75,7 +75,7 @@ def train_glaam4x_unified(config: dict):
 
     # Validate config
     required_keys = ['model_name', 'num_classes', 'img_size', 'batch_size',
-                     'dropout_rate', 'learning_rate', 'epochs', 'focal_alpha', 'focal_gamma']
+                     'dropout_rate', 'learning_rate', 'epochs', 'asl_gamma_neg', 'asl_gamma_pos']
     for key in required_keys:
         if key not in config:
             raise ValueError(f"Missing required config key: {key}")
@@ -101,13 +101,18 @@ def train_glaam4x_unified(config: dict):
     t0 = time.time()
     shutil.copytree("/data", "/tmp/data", dirs_exist_ok=True)
     print(f"Dataset copied in {time.time() - t0:.1f}s")
-    data_root = "/tmp/data"
+    # Modal volume structure: /data/raw/ (images) and /data/data/ (CSVs)
+    # After copytree: /tmp/data/raw/ and /tmp/data/data/
+    csv_root = "/tmp/data/data" if Path("/tmp/data/data").exists() else "/tmp/data"
+    img_root = "/tmp/data/raw" if Path("/tmp/data/raw").exists() else "/tmp/data"
+    print(f"CSV root: {csv_root}")
+    print(f"Image root: {img_root}")
 
     # ========== LOAD CSVs FROM LOCAL COPY ==========
     print("\nLoading v3 dataset CSV files...")
-    train_csv = Path(data_root) / "train_v3.csv"
-    val_tune_csv = Path(data_root) / "val_tune_v3.csv"
-    test_csv = Path(data_root) / "test_v3.csv"
+    train_csv = Path(csv_root) / "train_v3.csv"
+    val_tune_csv = Path(csv_root) / "val_tune_v3.csv"
+    test_csv = Path(csv_root) / "test_v3.csv"
 
     if not train_csv.exists():
         raise FileNotFoundError(f"Train CSV not found: {train_csv}")
@@ -213,9 +218,9 @@ def train_glaam4x_unified(config: dict):
             img = augmented['image']
             return img, torch.tensor(labels)
 
-    train_dataset = UnifiedDataset(train_df, data_root + "/raw", DISEASE_NAMES, config['img_size'], is_train=True, minority_aug_prob=0.7)
-    val_tune_dataset = UnifiedDataset(val_tune_df, data_root + "/raw", DISEASE_NAMES, config['img_size'], is_train=False)
-    test_dataset = UnifiedDataset(test_df, data_root + "/raw", DISEASE_NAMES, config['img_size'], is_train=False)
+    train_dataset = UnifiedDataset(train_df, img_root, DISEASE_NAMES, config['img_size'], is_train=True, minority_aug_prob=0.7)
+    val_tune_dataset = UnifiedDataset(val_tune_df, img_root, DISEASE_NAMES, config['img_size'], is_train=False)
+    test_dataset = UnifiedDataset(test_df, img_root, DISEASE_NAMES, config['img_size'], is_train=False)
 
     # Balanced sampler
     def get_sample_weights(df, disease_cols):

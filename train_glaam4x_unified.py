@@ -222,8 +222,10 @@ def find_optimal_thresholds(logits, labels, disease_names):
 
 def main():
     parser = argparse.ArgumentParser(description='Train GLAAM-4X on unified fundus dataset')
-    parser.add_argument('--train_csv', type=str, default='data/train_combined.csv',help='Path to train split CSV')
-    parser.add_argument('--val_csv', type=str, default='data/val_combined.csv',help='Path to validation split CSV')
+    parser.add_argument('--train_csv', type=str, default='data/train_v4.csv', help='Path to train split CSV')
+    parser.add_argument('--val_csv', type=str, default='data/val_tune_v4.csv', help='Path to validation split CSV')
+    parser.add_argument('--test_csv', type=str, default='data/test_v4.csv', help='Path to test split CSV (v3 comparison)')
+    parser.add_argument('--test_csv_extended', type=str, default='data/test_v4_extended.csv', help='Path to extended test CSV (publication)')
     parser.add_argument('--epochs', type=int, default=60)
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--lr', type=float, default=1e-4)
@@ -246,27 +248,22 @@ def main():
     print(f"Loading train from {args.train_csv}...")
     print(f"Loading val from {args.val_csv}...")
     train_df = pd.read_csv(args.train_csv)
-    val_df = pd.read_csv(args.val_csv)
+    val_tune_df = pd.read_csv(args.val_csv)
     disease_names = ['Cataract', 'DR', 'Glaucoma', 'Myopia']
     print(f"Train images: {len(train_df)}")
-    print(f"Val images: {len(val_df)}")
+    print(f"Val tune images: {len(val_tune_df)}")
     print(f"Train disease distribution: {train_df[disease_names].sum().to_dict()}")
-    print(f"Val disease distribution: {val_df[disease_names].sum().to_dict()}")
+    print(f"Val tune disease distribution: {val_tune_df[disease_names].sum().to_dict()}")
 
     # Create datasets and loaders
-    # Note: image_dir is not needed since image_path is absolute
     train_dataset = BalancedODIRDataset(
         df=train_df,
-        img_dir='.',  # image_path is already absolute
+        img_dir='.',
         disease_cols=disease_names,
         img_size=args.img_size,
         is_train=True,
         minority_aug_prob=0.7,
     )
-
-    # Split val into tune (threshold selection) and test (final eval)
-    val_tune_df = val_df.sample(frac=0.5, random_state=42)
-    test_df = val_df.drop(val_tune_df.index)
 
     val_tune_dataset = BalancedODIRDataset(
         df=val_tune_df,
@@ -275,16 +272,8 @@ def main():
         img_size=args.img_size,
         is_train=False,
     )
-    test_dataset = BalancedODIRDataset(
-        df=test_df,
-        img_dir='.',
-        disease_cols=disease_names,
-        img_size=args.img_size,
-        is_train=False,
-    )
 
     print(f"Val tune: {len(val_tune_df)} images")
-    print(f"Test eval: {len(test_df)} images")
 
     # Balanced sampler for training
     sample_weights = get_sample_weights(train_df, disease_names)
@@ -307,13 +296,6 @@ def main():
     )
     val_tune_loader = DataLoader(
         val_tune_dataset,
-        batch_size=args.batch_size,
-        shuffle=False,
-        num_workers=4,
-        pin_memory=True,
-    )
-    test_loader = DataLoader(
-        test_dataset,
         batch_size=args.batch_size,
         shuffle=False,
         num_workers=4,
@@ -449,38 +431,80 @@ def main():
 
         scheduler.step()
 
-    # Final evaluation on held-out test set
+    # Final evaluation on test sets
     print(f"\n{'='*60}")
-    print("FINAL EVALUATION ON TEST SET")
+    print("FINAL EVALUATION")
     print(f"{'='*60}")
 
     # Load best model
     best_ckpt = torch.load(os.path.join(run_dir, 'best_model.pth'), map_location=device, weights_only=False)
     model.load_state_dict(best_ckpt['model_state_dict'])
-
-    test_logits, test_labels = evaluate(model, test_loader, device)
     final_thresholds = best_ckpt['optimal_thresholds']
-    test_metrics, _ = compute_metrics(test_logits, test_labels, disease_names, final_thresholds)
 
-    print(f"\nTest Macro F1 (tuned thresholds): {test_metrics['macro_f1']:.4f}")
-    print("\nPer-disease (tuned thresholds):")
-    for d in disease_names:
-        m = test_metrics[d]
-        print(f"  {d:12s} AUC={m['auc']:.4f} F1={m['f1']:.4f} P={m['precision']:.4f} R={m['recall']:.4f} thr={final_thresholds[d]:.2f}")
+    # Evaluate on each test set
+    test_csvs = {
+        'test_v4': args.test_csv,
+        'test_v4_extended': args.test_csv_extended,
+    }
+
+    all_results = {}
+
+    for test_name, test_csv in test_csvs.items():
+        if not os.path.exists(test_csv):
+            print(f"\n⚠️  {test_csv} not found, skipping {test_name}")
+            continue
+
+        print(f"\n{'─'*40}")
+        print(f"  {test_name}: {test_csv}")
+        print(f"{'─'*40}")
+
+        test_df = pd.read_csv(test_csv)
+        test_dataset = BalancedODIRDataset(
+            df=test_df,
+            img_dir='.',
+            disease_cols=disease_names,
+            img_size=args.img_size,
+            is_train=False,
+        )
+        test_loader = DataLoader(
+            test_dataset,
+            batch_size=args.batch_size,
+            shuffle=False,
+            num_workers=4,
+            pin_memory=True,
+        )
+
+        test_logits, test_labels = evaluate(model, test_loader, device)
+        test_metrics, _ = compute_metrics(test_logits, test_labels, disease_names, final_thresholds)
+
+        print(f"\n  {test_name} — {len(test_df)} images")
+        print(f"  Macro F1: {test_metrics['macro_f1']:.4f}")
+        print(f"  Per-disease:")
+        for d in disease_names:
+            m = test_metrics[d]
+            print(f"    {d:12s} AUC={m['auc']:.4f} F1={m['f1']:.4f} P={m['precision']:.4f} R={m['recall']:.4f} thr={final_thresholds[d]:.2f}")
+
+        all_results[test_name] = {
+            'num_images': len(test_df),
+            'metrics': test_metrics,
+            'thresholds': final_thresholds,
+        }
 
     # Save final results
     results = {
         'best_epoch': best_epoch,
         'best_val_tune_f1': best_val_f1,
         'optimal_thresholds': final_thresholds,
-        'test_metrics': test_metrics,
+        'test_results': all_results,
         'config': vars(args),
     }
     with open(os.path.join(run_dir, 'results.json'), 'w') as f:
         json.dump(results, f, indent=2)
 
-    print(f"\nResults saved to {run_dir}/")
+    print(f"\n{'='*60}")
+    print(f"Results saved to {run_dir}/")
     print(f"Best model: {run_dir}/best_model.pth")
+    print(f"{'='*60}")
 
 
 if __name__ == '__main__':

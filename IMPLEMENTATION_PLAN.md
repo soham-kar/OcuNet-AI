@@ -2,7 +2,7 @@
 
 > **Multi-Disease Fundus Classification with Explainable Attention Mechanisms**
 >
-> Last Updated: 2026-06-06 | Status: Phase 1 Complete ✅
+> Last Updated: 2026-06-08 | Status: Phase 2 In Progress 🔄
 
 ---
 
@@ -253,14 +253,122 @@ best_epoch: 40
 | **Label Smoothing** | Soft labels (0.1 smoothing) | Better calibration | 🟡 Medium |
 | **SAM Optimizer** | Sharpness-Aware Minimization | Better generalization | 🟢 Low |
 
-### 4.2 Data Improvements
+### 4.2 Data Improvements — v4 Dataset Expansion 🔥
 
-| Task | Approach | Expected Impact | Priority |
-|------|----------|-----------------|----------|
-| **Cataract Data Augmentation** | Add more cataract sources (e.g., CataractDataset) | Address 3.7% prevalence | 🔴 High |
-| **Synthetic DR Lesions** | Use `augmentation/synthetic_dr_lesions.py` | More DR training samples | 🔴 High |
-| **Hard Negative Mining** | Focus on misclassified samples | Reduce false positives | 🟡 Medium |
-| **Cross-Validation** | 5-fold CV instead of single split | More reliable metrics | 🟡 Medium |
+> **Status**: IN PROGRESS | **Target**: +2,870 real images + 1,500 synthetic cataract
+
+#### 4.2.1 Current Data Distribution & Gaps
+
+| Disease | Real Images (ODIR) | New Real (External) | Total Real | Gap |
+|---------|-------------------|---------------------|------------|-----|
+| **DR** | ~2,500 | +13,673 (DDR) | **~16,000** | ✅ Solved |
+| **Glaucoma** | ~1,200 | +544 (G1020+ORIGA+REFUGE) | **~1,744** | ✅ Solved |
+| **Cataract** | ~800 | 0 | **~800** | 🔴 **CRITICAL GAP** |
+| **Myopia** | ~1,000 | +239 (PALM) | **~1,239** | ✅ Solved |
+
+**Cataract is now the scarcest class — DR has 20× more data.**
+
+#### 4.2.2 New Real Datasets to Integrate
+
+| Dataset | Images | Disease Labels | Location | Priority |
+|---------|--------|---------------|----------|----------|
+| **PALM** | 400 (213 PM + 26 HM + 161 N) | Pathological Myopia | `data/raw/PALM/` | 🔴 High |
+| **G1020** | 1,020 (296 Glaucoma) | Glaucoma (binary) | `data/raw/other_dataset/G1020/` | 🔴 High |
+| **ORIGA** | 650 (168 Glaucoma) | Glaucoma + CDR | `data/raw/other_dataset/ORIGA/` | 🔴 High |
+| **REFUGE (orig)** | 1,200 (80 Glaucoma) | Glaucoma (binary) | `data/raw/other_dataset/REFUGE/` | 🟡 Medium |
+| **DDR** | 13,673 | DR grading + lesions | `data/raw/DDR/` | 🟡 Medium |
+
+#### 4.2.3 Synthetic Cataract Generation Plan
+
+**Why synthetic?** Cataract in fundus images manifests as global image degradation (haze, blur, contrast loss, color shift) — fundamentally an image processing problem, not a generative modeling problem. No GAN training needed.
+
+##### Research Papers
+
+| Paper | Venue | arXiv | Code | Relevance |
+|-------|-------|-------|------|-----------|
+| **FD3** — Kim et al. (2024) | IEEE JBHI | [`2409.12377`](https://arxiv.org/abs/2409.12377) | [`github.com/heeheee888/FD3`](https://github.com/heeheee888/FD3) | ⭐⭐⭐ Forward degradation model validated by ophthalmologists |
+| **Catintell** — Gong et al. (2025) | Scientific Reports | [`2411.12278`](https://arxiv.org/abs/2411.12278) | See paper | ⭐⭐ GAN-based cataract synthesis (Phase 2 option) |
+| **CataractDetection** — Abbaszadeh et al. (2025) | arXiv | [`2509.22696`](https://arxiv.org/abs/2509.22696) | — | ⭐ Validates fundus-based cataract detection |
+| **Pediatric Ophthalmology** — Reid & Eaton (2019) | Curr Opin Ophthalmol | [`1904.08796`](https://arxiv.org/abs/1904.08796) | — | ⭐ Survey mentioning ophthalmic image synthesis |
+
+##### Available Data & Code
+
+| Resource | URL | Purpose |
+|----------|-----|---------|
+| FD3 Code | `https://github.com/heeheee888/FD3` | Forward degradation model (`degradation.py`) |
+| FD3 FPE Dataset | [Google Drive](https://drive.google.com/file/d/156TQtOpPEe5RXFF6PmdO9emyYFdpeiLU/view) | 40 real cataract + before/after surgery pairs |
+| EyeQ Dataset | `https://github.com/HzFu/EyeQ` | Fundus quality labels (used by FD3) |
+| Clear source images | `data/raw/` (ODIR, DDR, RFMiD, PALM, G1020, ORIGA, REFUGE) | ~12,000+ normal fundus images |
+
+##### Phase 1: Classical Pipeline (NOW) 🔥
+
+**Step 1**: Create `augmentation/synthetic_cataract.py`
+
+```
+Class: SyntheticCataract
+├── _apply_gaussian_blur()     → Light scattering through cloudy lens
+├── _reduce_contrast()         → Reduced light transmission
+├── _add_haze()                → Whitish veil overlay
+├── _shift_color()             → Yellowish/brownish nuclear sclerosis tint
+├── _add_noise()               → Low-light sensor degradation
+└── __call__()                 → Full pipeline with severity control
+```
+
+Severity parameters:
+
+| Parameter | Mild | Moderate | Severe |
+|-----------|------|----------|--------|
+| `blur_sigma` | 1.5–2.5 | 3.0–4.5 | 5.0–7.0 |
+| `contrast_reduction` | 0.80–0.90 | 0.55–0.75 | 0.35–0.50 |
+| `haze_intensity` | 0.05–0.15 | 0.15–0.30 | 0.30–0.50 |
+| `color_shift` | subtle | moderate | strong |
+| `noise_sigma` | 0.005–0.01 | 0.01–0.03 | 0.03–0.05 |
+
+**Step 2**: Create `scripts/generate_synthetic_cataract.py`
+- Reads clear images from all source datasets
+- Applies `SyntheticCataract` with randomized severity
+- Distribution: 60% moderate, 25% mild, 15% severe
+- Saves to `data/synthetic/cataract/`
+- Generates `synthetic_cataract.csv` (cataract=1, others=0)
+
+**Step 3**: Generate 1,500 synthetic cataract images
+- 900 moderate | 375 mild | 225 severe
+
+##### Phase 2: FD3 Forward Model (Medium-term)
+
+- Clone `https://github.com/heeheee888/FD3`
+- Extract `degradation.py` (light transmission disturbance + blur + retinal artifacts)
+- Create `augmentation/synthetic_cataract_fd3.py` wrapper
+- Compare quality: Phase 1 vs Phase 2 → pick winner for v5
+
+##### Phase 3: GAN-based Catintell-Syn (Long-term, Optional)
+
+- Train on ODIR cataract (~800) + clear images (~12,000)
+- Unpaired CycleGAN-style training
+- Requires GPU training time but produces photorealistic results
+
+##### Validation Strategy
+
+| Method | Metric | Target |
+|--------|--------|--------|
+| Classifier performance | Cataract F1 with vs without synthetic | +0.05–0.10 improvement |
+| Domain gap | FID (Fréchet Inception Distance) | < 50 (lower = more realistic) |
+| Grad-CAM | Attention map quality | Focus on global image, not artifacts |
+| Blind test | Human discrimination rate | < 60% (chance = 50%) |
+
+#### 4.2.4 Integration Steps (v4)
+
+| Step | Action | Output |
+|------|--------|--------|
+| 1 | Create `augmentation/synthetic_cataract.py` | Cataract simulation module |
+| 2 | Create `scripts/generate_synthetic_cataract.py` | Batch generation script |
+| 3 | Generate 1,500 synthetic cataract images | `data/synthetic/cataract/` |
+| 4 | Convert PALM labels to 4-disease format | 239 myopia images |
+| 5 | Convert G1020 labels to 4-disease format | 296 glaucoma images |
+| 6 | Convert ORIGA labels to 4-disease format | 168 glaucoma images |
+| 7 | Convert REFUGE labels to 4-disease format | 80 glaucoma images |
+| 8 | Create `train_v4.csv` / `val_v4.csv` / `test_v4.csv` | Unified v4 splits |
+| 9 | Train v4 model | Target: Macro F1 ≥ 0.72 |
 
 ### 4.3 Training Improvements
 
@@ -340,12 +448,16 @@ Phase 1: Foundation
 ├── Evaluation & XAI         ████████████  COMPLETE (May 2026)
 └── GitHub Release           ████████████  COMPLETE (May 2026)
 
-Phase 2: Optimization        [ESTIMATED: 2-3 weeks]
+Phase 2: Optimization        [IN PROGRESS — June 2026]
+├── Dataset Inventory        ████████████  COMPLETE
+├── DDR Download (13,673)    ████████████  COMPLETE
+├── Glaucoma Datasets Found  ████████████  COMPLETE (G1020+ORIGA+REFUGE)
+├── Synthetic Cataract Plan  ████████████  COMPLETE
+├── Synthetic Cataract Code  ░░░░░░░░░░░░  IN PROGRESS
+├── v4 Dataset Creation      ░░░░░░░░░░░░  PLANNED
+├── v4 Model Training        ░░░░░░░░░░░░  PLANNED
 ├── Hyperparameter Tuning    ░░░░░░░░░░░░  PLANNED
-├── Larger Image Size (512)  ░░░░░░░░░░░░  PLANNED
-├── Ensemble Training        ░░░░░░░░░░░░  PLANNED
-├── Data Augmentation        ░░░░░░░░░░░░  PLANNED
-└── Cross-Validation         ░░░░░░░░░░░░  PLANNED
+└── Ensemble Training        ░░░░░░░░░░░░  PLANNED
 
 Phase 3: Clinical Validation [ESTIMATED: 3-4 weeks]
 ├── Hospital Data Collection ░░░░░░░░░░░░  PLANNED
@@ -410,4 +522,4 @@ f51ddb8 feat(models): add GLAAM-4X multi-disease classifier architecture
 
 ---
 
-> **Next Action:** Begin Phase 2 — Hyperparameter optimization with Optuna and 512×512 training.
+> **Next Action:** Create `augmentation/synthetic_cataract.py` — Phase 1 classical cataract simulation pipeline.
