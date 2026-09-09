@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>GLAAM-4X — Fundus Disease Detection</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg:       #f7f8fc;
+      --surface:  #ffffff;
+      --surface2: #f0f2f8;
+      --border:   #e2e6ef;
+      --accent:   #3b6cf6;
+      --accent2:  #5a7dff;
+      --text:     #1a1d2e;
+      --muted:    #7a8299;
+      --cat:  #e53e3e;
+      --dr:   #dd6b20;
+      --gla:  #805ad5;
+      --myo:  #3182ce;
+      --ok:   #2f855a;
+      --warn: #c05621;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,.06);
+      --shadow-md: 0 4px 16px rgba(0,0,0,.08);
+      --shadow-lg: 0 8px 32px rgba(0,0,0,.10);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* HEADER */
+    header {
+      text-align: center;
+      padding: 2.5rem 1rem 1rem;
+    }
+    .logo-ring {
+      width: 56px; height: 56px; margin: 0 auto .9rem;
+      border-radius: 16px;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem; color: white; font-weight: 700;
+      box-shadow: 0 4px 20px rgba(59,108,246,.25);
+    }
+    h1 {
+      font-size: clamp(1.5rem, 4vw, 2.1rem); font-weight: 800;
+      color: var(--text); letter-spacing: -0.5px;
+    }
+    .subtitle { margin-top: .3rem; color: var(--muted); font-size: .88rem; }
+    .model-badge {
+      display: inline-flex; align-items: center; gap: .4rem;
+      margin-top: .7rem; padding: .28rem .85rem;
+      border: 1px solid var(--border); border-radius: 99px;
+      font-size: .74rem; color: var(--muted); background: var(--surface);
+      box-shadow: var(--shadow-sm);
+    }
+    .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok);
+           box-shadow: 0 0 6px rgba(47,133,90,.5); animation: blink 2s infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+    /* MAIN */
+    main { max-width: 880px; margin: 0 auto; padding: 1rem 1.5rem 4rem; }
+
+    /* UPLOAD ZONE */
+    .upload-card {
+      background: var(--surface); border: 2px dashed var(--border);
+      border-radius: 16px; padding: 2.2rem 2rem; text-align: center;
+      cursor: pointer; transition: border-color .25s, box-shadow .25s, transform .2s;
+      position: relative; overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+    .upload-card:hover, .upload-card.drag-over {
+      border-color: var(--accent); box-shadow: var(--shadow-md); transform: translateY(-2px);
+    }
+    .upload-icon { font-size: 2rem; margin-bottom: .7rem; color: var(--accent); }
+    .upload-title { font-size: 1.05rem; font-weight: 600; margin-bottom: .25rem; }
+    .upload-hint  { color: var(--muted); font-size: .82rem; }
+    .upload-btn {
+      margin-top: 1rem; display: inline-block;
+      padding: .55rem 1.6rem; border-radius: 10px;
+      background: var(--accent); color: white; font-weight: 600; font-size: .85rem;
+      cursor: pointer; border: none;
+      box-shadow: 0 3px 12px rgba(59,108,246,.25);
+      transition: transform .15s, box-shadow .15s;
+    }
+    .upload-btn:hover { transform: translateY(-1px); box-shadow: 0 5px 18px rgba(59,108,246,.35); }
+    #file-input { display: none; }
+    #img-preview {
+      display: none; max-height: 200px; border-radius: 12px;
+      margin: 0 auto 1rem; border: 1px solid var(--border);
+      box-shadow: var(--shadow-md);
+    }
+
+    /* SAMPLE BUTTONS */
+    .samples-section { margin-top: 1rem; text-align: center; }
+    .samples-label { color: var(--muted); font-size: .8rem; margin-bottom: .5rem; }
+    .samples-row { display: flex; gap: .4rem; justify-content: center; flex-wrap: wrap; }
+    .sample-btn {
+      padding: .38rem .85rem; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--surface); color: var(--text);
+      cursor: pointer; font-size: .78rem; font-weight: 600;
+      transition: all .2s; box-shadow: var(--shadow-sm);
+    }
+    .sample-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ANALYZE BUTTON */
+    #analyze-btn {
+      width: 100%; margin-top: 1rem;
+      padding: .85rem 2rem; border: none; border-radius: 12px;
+      background: var(--accent); color: white; font-size: .98rem; font-weight: 700;
+      cursor: pointer; display: none;
+      box-shadow: 0 4px 20px rgba(59,108,246,.25);
+      transition: transform .15s, box-shadow .15s, opacity .15s;
+    }
+    #analyze-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(59,108,246,.35); }
+    #analyze-btn:disabled { opacity: .55; cursor: not-allowed; transform: none; }
+
+    /* SPINNER */
+    .spinner-wrap { display: none; text-align: center; padding: 2.5rem; }
+    .spinner {
+      width: 44px; height: 44px; margin: 0 auto .9rem;
+      border: 3px solid var(--border); border-top-color: var(--accent);
+      border-radius: 50%; animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner-text { color: var(--muted); font-size: .85rem; }
+
+    /* RESULTS */
+    #results { display: none; margin-top: 1.5rem; }
+
+    .status-banner {
+      border-radius: 12px; padding: .9rem 1.2rem;
+      display: flex; align-items: center; gap: .7rem;
+      margin-bottom: 1.2rem; border: 1px solid;
+      font-weight: 600; font-size: .95rem;
+    }
+    .status-banner.detected {
+      background: #fff5f5; border-color: #fed7d7; color: #c53030;
+    }
+    .status-banner.normal {
+      background: #f0fff4; border-color: #c6f6d5; color: #276749;
+    }
+    .status-icon { font-size: 1.3rem; font-weight: 800; }
+
+    /* BAR PLOT IMAGE */
+    .bar-plot-section {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 1rem; margin-bottom: 1.2rem;
+      box-shadow: var(--shadow-sm);
+    }
+    .bar-plot-section img { width: 100%; border-radius: 10px; display: block; }
+
+    /* DISEASE CARDS */
+    .disease-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: .9rem; margin-bottom: 1.2rem;
+    }
+    .disease-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1rem .9rem;
+      transition: border-color .2s, box-shadow .2s, transform .2s;
+      box-shadow: var(--shadow-sm);
+    }
+    .disease-card.flagged {
+      border-color: var(--card-color, var(--accent));
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--card-color, var(--accent)) 12%, transparent);
+    }
+    .disease-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+    .card-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: .6rem;
+    }
+    .card-name { font-weight: 700; font-size: .88rem; }
+    .card-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--card-color, var(--accent)); }
+    .card-desc { color: var(--muted); font-size: .74rem; margin-bottom: .7rem; line-height: 1.4; }
+    .prob-bar-bg {
+      height: 7px; background: var(--surface2); border-radius: 99px; overflow: hidden;
+    }
+    .prob-bar-fill {
+      height: 100%; border-radius: 99px;
+      background: var(--card-color, var(--accent));
+      transition: width 1s cubic-bezier(.25,.8,.25,1);
+    }
+    .prob-value { margin-top: .35rem; font-size: .8rem; font-weight: 600; text-align: right; }
+    .flagged-badge {
+      display: inline-block; font-size: .62rem; font-weight: 700;
+      padding: .1rem .4rem; border-radius: 99px;
+      background: var(--card-color, var(--accent));
+      color: white; margin-left: .3rem; vertical-align: middle;
+    }
+
+    /* HEATMAP */
+    .heatmap-section {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 1.3rem; margin-bottom: 1.2rem;
+      box-shadow: var(--shadow-sm);
+    }
+    .section-title {
+      font-size: 1rem; font-weight: 700; margin-bottom: .3rem;
+    }
+    .section-sub { color: var(--muted); font-size: .78rem; margin-bottom: 1rem; }
+    .heatmap-tabs { display: flex; gap: .4rem; margin-bottom: .9rem; flex-wrap: wrap; }
+    .heatmap-tab {
+      padding: .35rem .9rem; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--surface2); color: var(--muted);
+      cursor: pointer; font-size: .8rem; font-weight: 600; transition: all .2s;
+    }
+    .heatmap-tab:hover { border-color: var(--accent); color: var(--text); }
+    .heatmap-tab.active { background: var(--accent); border-color: var(--accent); color: white; }
+    .heatmap-img {
+      width: 100%; border-radius: 10px; border: 1px solid var(--border);
+      box-shadow: var(--shadow-md);
+    }
+
+    /* META */
+    .meta-row { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.2rem; }
+    .meta-chip {
+      display: inline-flex; align-items: center; gap: .35rem;
+      padding: .3rem .75rem; border-radius: 8px;
+      background: var(--surface); border: 1px solid var(--border);
+      font-size: .74rem; color: var(--muted); box-shadow: var(--shadow-sm);
+    }
+    .meta-chip span { color: var(--text); font-weight: 600; }
+
+    /* DISCLAIMER */
+    .disclaimer {
+      margin-top: 1.5rem; padding: .9rem 1.1rem;
+      background: #fffbf0; border: 1px solid #feeebc;
+      border-radius: 10px; font-size: .74rem; color: #975a16; line-height: 1.6;
+    }
+
+    /* DISEASE COLORS */
+    [data-disease="Cataract"] { --card-color: var(--cat); }
+    [data-disease="DR"]       { --card-color: var(--dr);  }
+    [data-disease="Glaucoma"] { --card-color: var(--gla); }
+    [data-disease="Myopia"]   { --card-color: var(--myo); }
+
+    @media (max-width: 600px) {
+      .upload-card { padding: 1.8rem 1rem; }
+      .disease-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo-ring">G4</div>
+  <h1>GLAAM-4X Fundus Analyzer</h1>
+  <p class="subtitle">AI-powered multi-disease detection from retinal fundus images</p>
+  <div class="model-badge">
+    <span class="dot"></span>
+    GLAAM-4X v4 &middot; MobileNetV2 &middot; 12.3M params &middot; Test AUC 0.968
+  </div>
+</header>
+
+<!-- MAIN -->
+<main>
+
+  <!-- Upload zone -->
+  <div class="upload-card" id="drop-zone">
+    <img id="img-preview" src="" alt="Preview"/>
+    <div id="upload-prompt">
+      <div class="upload-icon">&#128269;</div>
+      <p class="upload-title">Drop a fundus image here</p>
+      <p class="upload-hint">Supports JPG, PNG, BMP, TIFF &middot; Max 16 MB</p>
+      <label for="file-input" class="upload-btn">Choose Image</label>
+    </div>
+    <input type="file" id="file-input" accept="image/*"/>
+  </div>
+
+  <!-- Sample images -->
+  <div class="samples-section">
+    <p class="samples-label">or try a sample</p>
+    <div class="samples-row">
+      <button class="sample-btn" data-sample="cataract_sample.jpg">Cataract</button>
+      <button class="sample-btn" data-sample="dr_sample.jpg">DR</button>
+      <button class="sample-btn" data-sample="glaucoma_sample.jpg">Glaucoma</button>
+      <button class="sample-btn" data-sample="myopia_sample.jpg">Myopia</button>
+      <button class="sample-btn" data-sample="normal_sample.jpg">Normal</button>
+    </div>
+  </div>
+
+  <button id="analyze-btn">Analyze Image</button>
+
+  <!-- Loading -->
+  <div class="spinner-wrap" id="spinner">
+    <div class="spinner"></div>
+    <p class="spinner-text" id="spinner-text">Running GLAAM-4X model...</p>
+  </div>
+
+  <!-- Results -->
+  <div id="results">
+
+    <!-- Status banner -->
+    <div class="status-banner" id="status-banner">
+      <span class="status-icon" id="status-icon"></span>
+      <span id="status-text"></span>
+    </div>
+
+    <!-- Bar plot (main visual) -->
+    <div class="bar-plot-section">
+      <img id="bar-plot-img" src="" alt="Disease probability bar plot"/>
+    </div>
+
+    <!-- Disease probability cards -->
+    <div class="disease-grid" id="disease-grid"></div>
+
+    <!-- Heatmap section -->
+    <div class="heatmap-section" id="heatmap-section" style="display:none">
+      <p class="section-title">Explainability &mdash; Where is the model looking?</p>
+      <p class="section-sub">
+        EigenGradCAM heatmap showing the retinal regions that drove each disease prediction.
+      </p>
+      <div class="heatmap-tabs" id="heatmap-tabs"></div>
+      <img class="heatmap-img" id="heatmap-img" src="" alt="Attention heatmap"/>
+    </div>
+
+    <!-- Meta row -->
+    <div class="meta-row" id="meta-row"></div>
+
+    <!-- Disclaimer -->
+    <div class="disclaimer">
+      <strong>Medical Disclaimer:</strong> This tool is for research and demonstration
+      purposes only and does not constitute medical advice. Always consult a qualified
+      ophthalmologist for diagnosis and treatment.
+    </div>
+
+  </div>
+</main>
+
+<script>
+const DISEASE_META = {
+  Cataract: { color: '#e53e3e', desc: 'Lens opacity / blurred vision' },
+  DR:       { color: '#dd6b20', desc: 'Retinal blood vessel damage' },
+  Glaucoma: { color: '#805ad5', desc: 'Optic nerve damage' },
+  Myopia:   { color: '#3182ce', desc: 'Nearsightedness' },
+};
+
+let selectedFile = null;
+let heatmaps = {};
+
+const dropZone    = document.getElementById('drop-zone');
+const fileInput   = document.getElementById('file-input');
+const analyzeBtn  = document.getElementById('analyze-btn');
+const imgPreview  = document.getElementById('img-preview');
+const uploadPrmt  = document.getElementById('upload-prompt');
+const spinner     = document.getElementById('spinner');
+const spinnerText = document.getElementById('spinner-text');
+const results     = document.getElementById('results');
+
+// Drag & drop
+dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', ()=> dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f && f.type.startsWith('image/')) setFile(f);
+});
+dropZone.addEventListener('click', e => {
+  if (e.target !== document.querySelector('.upload-btn') && e.target !== fileInput) fileInput.click();
+});
+fileInput.addEventListener('change', () => fileInput.files[0] && setFile(fileInput.files[0]));
+
+// Sample buttons
+document.querySelectorAll('.sample-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const filename = btn.dataset.sample;
+    const resp = await fetch('/demo_images/' + filename);
+    const blob = await resp.blob();
+    const file = new File([blob], filename, { type: blob.type });
+    setFile(file);
+  });
+});
+
+function setFile(f) {
+  selectedFile = f;
+  const url = URL.createObjectURL(f);
+  imgPreview.src = url;
+  imgPreview.style.display = 'block';
+  uploadPrmt.style.display = 'none';
+  analyzeBtn.style.display = 'block';
+  results.style.display = 'none';
+  heatmaps = {};
+}
+
+// Analyze
+analyzeBtn.addEventListener('click', async () => {
+  if (!selectedFile) return;
+  analyzeBtn.disabled = true;
+  spinner.style.display = 'block';
+  results.style.display = 'none';
+  spinnerText.textContent = 'Running GLAAM-4X model...';
+
+  const fd = new FormData();
+  fd.append('image', selectedFile);
+
+  try {
+    const resp = await fetch('/predict', { method: 'POST', body: fd });
+    const data = await resp.json();
+    spinner.style.display = 'none';
+    analyzeBtn.disabled = false;
+    if (data.error) { alert('Error: ' + data.error); return; }
+    renderResults(data);
+  } catch(err) {
+    spinner.style.display = 'none';
+    analyzeBtn.disabled = false;
+    alert('Network error: ' + err.message);
+  }
+});
+
+// Render results
+function renderResults(data) {
+  results.style.display = 'block';
+  heatmaps = data.heatmaps || {};
+
+  // Status banner
+  const banner   = document.getElementById('status-banner');
+  const icon     = document.getElementById('status-icon');
+  const statusTx = document.getElementById('status-text');
+  if (data.flagged.length > 0) {
+    banner.className  = 'status-banner detected';
+    icon.textContent  = '!';
+    statusTx.textContent = data.flagged.length + ' disease' + (data.flagged.length>1?'s':'') + ' detected: ' + data.flagged.join(', ');
+  } else {
+    banner.className  = 'status-banner normal';
+    icon.textContent  = '\u2713';
+    statusTx.textContent = 'No disease detected above threshold';
+  }
+
+  // Bar plot image
+  document.getElementById('bar-plot-img').src = 'data:image/png;base64,' + data.bar_plot;
+
+  // Disease cards
+  const grid = document.getElementById('disease-grid');
+  grid.innerHTML = '';
+  for (const [disease, prob] of Object.entries(data.probs)) {
+    const meta    = DISEASE_META[disease] || {};
+    const flagged = data.flagged.includes(disease);
+    const thr     = data.thresholds[disease] || 0.5;
+    const pct     = (prob * 100).toFixed(1);
+
+    const card = document.createElement('div');
+    card.className = 'disease-card' + (flagged ? ' flagged' : '');
+    card.dataset.disease = disease;
+    card.innerHTML = `
+      <div class="card-header">
+        <span class="card-name">${disease}${flagged ? '<span class="flagged-badge">DETECTED</span>' : ''}</span>
+        <span class="card-dot"></span>
+      </div>
+      <p class="card-desc">${meta.desc || ''}</p>
+      <div class="prob-bar-bg"><div class="prob-bar-fill" style="width:0%;--card-color:${meta.color}"></div></div>
+      <p class="prob-value" style="color:${meta.color}">${pct}%  <span style="color:var(--muted);font-size:.7rem">(thr ${thr.toFixed(2)})</span></p>
+    `;
+    grid.appendChild(card);
+
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      card.querySelector('.prob-bar-fill').style.width = pct + '%';
+    }));
+  }
+
+  // Heatmap section
+  const hmSection = document.getElementById('heatmap-section');
+  const hmTabs    = document.getElementById('heatmap-tabs');
+  const hmImg     = document.getElementById('heatmap-img');
+  hmTabs.innerHTML = '';
+
+  const hmDiseases = Object.keys(heatmaps);
+  if (hmDiseases.length > 0) {
+    hmSection.style.display = 'block';
+    hmDiseases.forEach((d, i) => {
+      const tab = document.createElement('button');
+      tab.className = 'heatmap-tab' + (i === 0 ? ' active' : '');
+      tab.textContent = d;
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.heatmap-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        hmImg.src = 'data:image/png;base64,' + heatmaps[d];
+      });
+      hmTabs.appendChild(tab);
+    });
+    hmImg.src = 'data:image/png;base64,' + heatmaps[hmDiseases[0]];
+  } else {
+    hmSection.style.display = 'none';
+  }
+
+  // Meta chips
+  const metaRow = document.getElementById('meta-row');
+  metaRow.innerHTML = `
+    <div class="meta-chip">Time <span>${data.elapsed}s</span></div>
+    <div class="meta-chip">Device <span>${data.device}</span></div>
+    <div class="meta-chip">Input <span>384&times;384</span></div>
+    <div class="meta-chip">Model <span>GLAAM-4X v4</span></div>
+  `;
+
+  results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+{
+  "model_name": "glaam4x_unified_v4_asl_384",
+  "architecture": "GLAAM-4X",
+  "backbone": "MobileNetV2",
+  "num_classes": 4,
+  "disease_names": [
+    "Cataract",
+    "DR",
+    "Glaucoma",
+    "Myopia"
+  ],
+  "img_size": 384,
+  "dropout_rate": 0.3,
+  "best_epoch": 48,
+  "best_val_tune_f1": 0.8275120358444119,
+  "test_results": {
+    "test_v4": {
+      "num_images": 2232,
+      "macro_f1": 0.7857491892028985
+    }
+  },
+  "training_config": {
+    "learning_rate": 2e-05,
+    "weight_decay": 0.0005,
+    "batch_size": 32,
+    "epochs_trained": 0,
+    "warmup_epochs": 10,
+    "asl_gamma_neg": 4.0,
+    "asl_gamma_pos": 0.0,
+    "asl_clip": 0.05
+  }
+}
