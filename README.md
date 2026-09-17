@@ -1,156 +1,263 @@
-# OcuNet-AI: Multi-Disease Fundus Classification with GLAAM-4X
+# OcuNet-AI: GLAAM-4X — Multi-Disease Fundus Classification with Disease-Specific Attention Specialists
 
-> **A unified deep learning framework for detecting Cataract, Diabetic Retinopathy (DR), Glaucoma, and Myopia from retinal fundus photographs using disease-specific attention mechanisms.**
+> **A unified deep learning framework for detecting Cataract, Diabetic Retinopathy (DR), Glaucoma, and Myopia from retinal fundus photographs using disease-specific attention mechanisms with SHAP/LIME explainability.**
 
-![Python 3.9+](https://img.shields.io/badge/Python-3.9+-blue.svg)
-![PyTorch 2.0+](https://img.shields.io/badge/PyTorch-2.0+-orange.svg)
-![License MIT](https://img.shields.io/badge/License-MIT-green.svg)
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
+[![PyTorch 2.1](https://img.shields.io/badge/PyTorch-2.1-orange.svg)](https://pytorch.org/)
+[![Modal](https://img.shields.io/badge/Modal-serverless-green.svg)](https://modal.com/)
+[![License MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-## 🚀 Key Innovation
+---
 
-This work addresses critical gaps in existing cataract detection research:
+## 📋 Overview
 
-| Gap in Literature | Our Solution |
-|-------------------|--------------|
-| GLAAM uses fundus (indirect) imaging | Apply GLAAM to **slit-lamp** (direct lens) imaging |
-| No lens region localization | **YOLOv8-nano** detects lens ROI |
-| Binary detection OR severity grading | **Multi-task**: both simultaneously |
-| No mobile deployment validation | **ONNX export** for mobile inference |
+**GLAAM-4X** assigns each of four fundus diseases its own **attention specialist** while sharing a common MobileNetV2 backbone:
 
-## 📁 Project Structure
+| Disease | Attention Head | Rationale |
+|---------|---------------|-----------|
+| **DR** 🩸 | MultiScaleGLAAM (3 scales) | Microaneurysms → hemorrhages (2–50+ px) |
+| **Glaucoma** 🔵 | GLAAMBlock (reduction=8) | Optic disc localization |
+| **Cataract** 👁️ | GLAAMBlock (reduction=16) | Diffuse lens opacity |
+| **Myopia** 🔍 | GLAAMBlock (reduction=32) | Peripapillary atrophy |
+
+**Key results** (3,480 test images across 16 sources):
+- **Macro F1: 0.8091**
+- Per-disease AUCs: **0.95–0.99**
+- Disease-specific attention verified: DR head anti-correlated (−0.88) with others
+- Lightweight shared-attention variant: 3.70M params at 0.8150 Macro F1 (70% fewer params)
+
+---
+
+## 🏗️ Project Structure
 
 ```
 cataract_detection/
-├── configs/
-│   └── config.yaml              # Hyperparameters
+├── configs/                    # Hyperparameters & thresholds
+│   ├── odir_glaam_final.json
+│   ├── glaam_optuna_best.json
+│   └── optimal_thresholds.json
 ├── models/
-│   ├── attention/
-│   │   ├── glaam.py            # GLAAM attention module
-│   │   └── glaai.py            # GLAAI attention module
-│   ├── backbones/
-│   │   └── backbone.py         # MobileNetV2/InceptionV3
-│   ├── yolo/
-│   │   └── lens_detector.py    # YOLOv8 lens detector
-│   └── hybrid_model.py         # Main YOLO-GLAAM model
-├── training/
-│   ├── train_hybrid.py         # Train main model
-│   └── train_yolo.py           # Train lens detector
-├── evaluation/
-│   ├── grad_cam.py             # Interpretability
-│   └── benchmark.py            # Speed benchmarks
-├── utils/
-│   └── dataset.py              # Dataset utilities
-└── requirements.txt
+│   ├── glaam_4x.py            # GLAAM-4X architecture
+│   ├── glaam_bayesian.py       # Bayesian variant
+│   ├── hybrid_model.py         # Legacy YOLO-GLAAM
+│   ├── attention/              # GLAAM, GLAAMBlock modules
+│   ├── backbones/              # MobileNetV2 etc.
+│   └── yolo/                   # Legacy YOLO detector
+├── evaluation/                 # Grad-CAM, calibration, uncertainty
+├── training/                   # Local training scripts (legacy)
+├── modal_*.py                  # 🔥 **Modal scripts** (primary workflow)
+├── app.py                      # 🌐 Flask web demo
+├── inference_local.py          # 🖥️ Local inference with EigenGradCAM
+├── GLAAM4X_PAPER.md            # 📄 Full manuscript draft
+├── generate_attention_maps.py  # GLAAM intrinsic attention maps
+├── generate_xai_figures.py     # SHAP/LIME local generation
+├── notebooks/                  # Jupyter notebooks for analysis
+├── xai_figures/                # Output figures
+├── explanations/               # Generated explanations
+├── checkpoints_glaam/          # Trained model weights
+├── calibration_results/        # Temperature scaling
+└── templates/
+    └── index.html              # Web app frontend
 ```
 
-## ⚙️ Installation
+---
+
+## 🚀 Quick Start
+
+### 1. Local Inference (Web Demo)
 
 ```bash
-# Clone and enter directory
-cd d:\projects\cataract_detection
-
-# Create virtual environment
-python -m venv venv
-venv\Scripts\activate  # Windows
-# source venv/bin/activate  # Linux/Mac
-
 # Install dependencies
-pip install -r requirements.txt
+pip install -r requirements_local.txt
+
+# Run the Flask web app
+python app.py
+# → Open http://localhost:5000
 ```
 
-## 📊 Dataset Setup
+Upload a fundus photo and get per-disease probabilities with an EigenGradCAM heatmap overlay showing where the model detected pathology.
 
-### 1. Download Mendeley Slit-lamp Dataset
-
-Download from: [Mendeley Nuclear Cataract Database](https://data.mendeley.com/datasets/6wv33nbcvv/2)
+### 2. Local Inference (CLI)
 
 ```bash
-# Extract to:
-data/raw/slitlamp/
-├── 45_degree/
-│   ├── NO_1.jpg
-│   ├── NC1_1.jpg
-│   └── ...
-└── 135_degree/
-    └── ...
+python inference_local.py --image path/to/fundus.jpg
+python inference_local.py --folder path/to/images/
 ```
 
-### 2. (Optional) ODIR Fundus Dataset for Baseline
-
-Download from: [Kaggle ODIR-5K](https://www.kaggle.com/datasets/andrewmvd/ocular-disease-recognition-odir5k)
-
-## 🏋️ Training
-
-### Step 1: Train YOLO Lens Detector (Optional)
-
-First, annotate ~100-200 images with lens bounding boxes:
+### 3. Generate SHAP + LIME Explanations (Local)
 
 ```bash
-# See annotation instructions
-python training/train_yolo.py --help-annotate
-
-# Train YOLO
-python training/train_yolo.py --data_yaml data/lens_detection/data.yaml --epochs 50
+python generate_xai_figures.py --method both --n-samples 4
 ```
 
-### Step 2: Train Hybrid Model
+### 4. Generate GLAAM Attention Maps
 
 ```bash
-python training/train_hybrid.py \
-    --data_root data/raw/slitlamp \
-    --epochs 100 \
-    --batch_size 32 \
-    --backbone mobilenetv2 \
-    --attention glaam
+python generate_attention_maps.py --n-samples 10
 ```
 
-Training logs: `tensorboard --logdir logs/`
+---
 
-## 📈 Evaluation
+## ☁️ Modal Training & Analysis
 
-### Grad-CAM Visualization
+All training and analysis runs on **[Modal](https://modal.com)** serverless GPUs. Volumes:
+- `cataract-data` — datasets and CSVs
+- `cataract-checkpoints` — trained models and results
+
+### Training
 
 ```bash
-python evaluation/grad_cam.py \
-    --model checkpoints/best.pth \
-    --image test_image.jpg \
-    --task binary \
-    --output gradcam_output.png
+# Full GLAAM-4X training
+modal run modal_train_glaam4x.py --epochs 40
+
+# Unified training script
+modal run modal_train_glaam4x_unified.py
 ```
 
-### Benchmark Speed
+### Publication Analysis (Ablation + Baselines + Significance)
 
 ```bash
-python evaluation/benchmark.py --device cuda --iterations 100
+# Run everything (7 ablation + 4 baseline models)
+modal run modal_publication_analysis.py
+
+# Analysis only (using saved results)
+modal run modal_publication_analysis.py --analysis-only
+
+# Skip baselines
+modal run modal_publication_analysis.py --skip-baselines
 ```
 
-## 📱 Mobile Export
+### Explainability (SHAP + LIME)
 
-```python
-from models import HybridCataractModel
+```bash
+# Generate both SHAP and LIME explanations
+modal run modal_shap_lime.py
 
-model = HybridCataractModel.load_from_checkpoint('checkpoints/best.pth')
-model.export_onnx('model.onnx', input_size=(384, 384))
+# LIME only
+modal run modal_shap_lime.py --method lime --n-samples 4
 ```
 
-## 📝 Citation
+### Evaluation
 
-If you use this work, please cite:
+```bash
+modal run modal_evaluate_glaam.py
+modal run modal_eval_glaam4x.py
+```
+
+### Download Results
+
+```bash
+modal volume get cataract-checkpoints glaam4x_v6_winning_recipe/shap_lime/ ./shap_lime/ --recursive
+```
+
+---
+
+## 📊 Key Results
+
+### A. Per-Disease Performance
+
+| Disease | AUC | F1 | Precision | Recall |
+|---------|-----|----|-----------|--------|
+| Cataract | 0.9927 | 0.8890 | 0.9070 | 0.8718 |
+| DR | 0.9511 | 0.8579 | 0.8745 | 0.8420 |
+| Glaucoma | 0.9706 | 0.8645 | 0.8910 | 0.8396 |
+| Myopia | 0.9915 | 0.6248 | 0.9750 | 0.4596 |
+| **Macro** | — | **0.8091** | — | — |
+
+### B. Ablation Study
+
+| Variant | Params (M) | Macro F1 | ∆ F1 |
+|---------|-----------|----------|------|
+| **A1 Full GLAAM-4X** | **12.52** | **0.8091** | 0.0 |
+| A2 No MultiScale DR | 12.52 | 0.8082 | −0.0009 |
+| A3 No Disease Gate | 12.52 | 0.8032 | −0.0059 |
+| A4 No Attention | 12.52 | 0.7997 | −0.0094 |
+| A5 Shared Attention | **3.70** | **0.8150** | **+0.0059** |
+| A6 No Warmup | 12.52 | 0.8055 | −0.0036 |
+
+### C. Dataset Composition
+
+16 sources, **30,439 train** / 3,871 val / **3,480 test** images:
+
+| Source | Samples | Diseases |
+|--------|---------|----------|
+| ODIR | 5,000 | Cataract, DR, Glaucoma, Myopia |
+| ODIR-5K | 5,000 | 4-disease |
+| DDR | 2,391 | DR |
+| RFMiD | 1,920 | 4-disease |
+| JSIEC | 500 | 4-disease |
+| PALM | 400 | Myopia |
+| PAPILA | 400 | Glaucoma |
+| IDRiD | 254 | DR |
+| ACRIMA | 353 | Glaucoma |
+| RIM-ONE | 313 | Glaucoma |
+| LAG | 2,699 | Glaucoma |
+| *Synthetic* | ~12,000 | Cataract, quality augmentation |
+
+### D. Significance (DR AUC)
+
+| Comparison | ∆ DR AUC | p-value |
+|-----------|----------|---------|
+| A1 vs A2 (No MultiScale) | +0.0091 | **< 0.0001** |
+| A1 vs A4 (No Attention) | +0.0071 | **< 0.0001** |
+| A1 vs A5 (Shared) | +0.0102 | **< 0.0001** |
+| A1 vs A3 (No Gate) | +0.0010 | 0.461 (n.s.) |
+
+---
+
+## 🔬 Explainability
+
+GLAAM-4X offers **three complementary** explanation methods:
+
+| Method | Type | What it shows |
+|--------|------|---------------|
+| **GLAAM Attention** | Intrinsic | Where each disease head looks (spatial attention activations) |
+| **SHAP** | Post-hoc | Pixel-level feature attribution (red = pushes prediction up) |
+| **LIME** | Post-hoc | Superpixel evidence (green = positive, red = negative) |
+
+Quantitative attention verification (Table VIII in paper):
+- DR head is anti-correlated (−0.88) with other disease heads
+- Cataract, Glaucoma, Myopia heads show low inter-correlation (0.20–0.22)
+- **Confirms each disease specialist learns a distinct spatial prior** without anatomical supervision
+
+---
+
+## 📦 Model Weights & Checkpoints
+
+| Model | File | Params |
+|-------|------|--------|
+| GLAAM-4X (best) | `checkpoints_glaam/glaam_final_best.pth` | 12.52M |
+| Shared-attention variant | From publication analysis | 3.70M |
+| Multitask baseline | `checkpoints_modal/multitask_model.pth` | — |
+| GLAAM calibrator | `calibration_results/glaam_calibrator.json` | — |
+
+---
+
+## 📝 Paper
+
+The full manuscript is in **[GLAAM4X_PAPER.md](./GLAAM4X_PAPER.md)** with:
+- Abstract, Introduction (Research Gaps & Contributions)
+- Related Work, Methodology
+- Experiments (Ablation, Baselines, Significance, Cross-Dataset, Failure, Efficiency)
+- Interpretability (Disease-Specific Attention Verification)
+- Discussion & Limitations
+- 8 tables, references
+
+---
+
+## 📎 Citation
 
 ```bibtex
-@article{yolo-glaam-2025,
-  title={YOLO-GLAAM: A Hybrid Attention Model for Real-time Cataract Detection and Severity Grading on Slit-lamp Images},
-  author={Your Name},
+@article{glaam4x-2025,
+  title={GLAAM-4X: Disease-Specific Attention Specialists for Interpretable
+         Multi-Disease Fundus Classification},
+  author={Kar, Soham and others},
   year={2025}
 }
 ```
 
-## 🔬 References
-
-1. Kumar et al. (2025) - GLAAM and GLAAI: Pioneering attention models for robust automated cataract detection
-2. Junayed et al. (2021) - CataractNet: An Automated Cataract Detection System
-3. Cruz-Vega et al. (2023) - Nuclear Cataract Database for Biomedical and Machine Learning Applications
+---
 
 ## 📄 License
 
-MIT License
+MIT
