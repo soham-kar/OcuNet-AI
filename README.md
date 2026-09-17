@@ -245,19 +245,6 @@ The full manuscript is in **[GLAAM4X_PAPER.md](./GLAAM4X_PAPER.md)** with:
 
 ---
 
-## 📎 Citation
-
-```bibtex
-@article{glaam4x-2025,
-  title={GLAAM-4X: Disease-Specific Attention Specialists for Interpretable
-         Multi-Disease Fundus Classification},
-  author={Kar, Soham and others},
-  year={2025}
-}
-```
-
----
-
 ## 📄 License
 
 MIT
